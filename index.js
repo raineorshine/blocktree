@@ -19,7 +19,11 @@ function ast (str, rules) {
   let toks = tokens(str, rules)
   return {
     type: 'document',
-    children: children(toks)
+    children: children(toks),
+    loc: {
+      start: 0,
+      end: str.length
+    }
   }
 }
 
@@ -72,7 +76,11 @@ function block (tokens, open) {
 
   let out = {
     type: 'block',
-    children: []
+    children: [],
+    loc: {
+      start: tokens[0].loc.start,
+      end: tokens[0].loc.end
+    }
   }
 
   if (open.params) {
@@ -83,6 +91,7 @@ function block (tokens, open) {
     token = tokens.shift()
     if (token.type === 'text') {
       out.children.push(text(token))
+      out.loc.end = token.loc.end
     } else if (token.type === 'marker') {
       out.children.push(marker(token))
     } else if (token.type === 'open') {
@@ -104,6 +113,7 @@ function block (tokens, open) {
 
 function tokens (str, rules) {
   let match = null
+  let totalOffset = 0
   let offset = 0
   let toks = []
   let buf = []
@@ -114,14 +124,40 @@ function tokens (str, rules) {
       match = str.match(rule.pattern)
       if (match) {
         if (buf.length) {
-          toks.push({ type: 'text', value: buf.join('') })
+          toks.push({
+            type: 'text',
+            value: buf.join(''),
+            loc: {
+              start: totalOffset,
+              end: totalOffset + buf.length
+            }
+          })
+          totalOffset += buf.length
+
           buf = []
         }
 
         if (match.length > 1) {
-          toks.push({ type: rule.name, value: match[0], params: match.slice(1) })
+          toks.push({
+            type: rule.name,
+            value: match[0],
+            params: match.slice(1),
+            loc: {
+              start: totalOffset,
+              end: totalOffset + match[0].length
+            }
+          })
+          totalOffset += match[0].length
         } else {
-          toks.push({ type: rule.name, value: match[0] })
+          toks.push({
+            type: rule.name,
+            value: match[0],
+            loc: {
+              start: totalOffset,
+              end: totalOffset + match[0].length
+            }
+          })
+          totalOffset += match[0].length
         }
 
         str = str.slice(match[0].length)
@@ -137,7 +173,15 @@ function tokens (str, rules) {
 
   // push the last remaining
   if (buf.length) {
-    toks.push({ type: 'text', value: buf.join('') })
+    toks.push({
+      type: 'text',
+      value: buf.join(''),
+      loc: {
+        start: totalOffset,
+        end: totalOffset + buf.length
+      }
+    })
+    totalOffset += buf.length
   }
 
   return toks
